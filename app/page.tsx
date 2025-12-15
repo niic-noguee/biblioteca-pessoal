@@ -24,6 +24,17 @@ export default function Home() {
   const [novoLivro, setNovoLivro] = useState({ titulo: '', ano: '', autorId: '' });
   const [mensagem, setMensagem] = useState('');
   const [erro, setErro] = useState('');
+  const [modal, setModal] = useState<{
+    isOpen: boolean;
+    tipo: 'autor' | 'livro' | null;
+    id: number | null;
+    nome: string;
+  }>({
+    isOpen: false,
+    tipo: null,
+    id: null,
+    nome: ''
+  });
 
   useEffect(() => {
     carregarDados();
@@ -43,6 +54,7 @@ export default function Home() {
       setLivros(livrosData);
     } catch (error) {
       setErro('Erro ao carregar dados');
+      setTimeout(() => setErro(''), 3000);
     }
   };
 
@@ -62,12 +74,15 @@ export default function Home() {
         setMensagem('Autor adicionado com sucesso!');
         setNovoAutor({ nome: '', pais: '' });
         carregarDados();
+        setTimeout(() => setMensagem(''), 3000);
       } else {
         const error = await response.json();
         setErro(error.error || 'Erro ao adicionar autor');
+        setTimeout(() => setErro(''), 3000);
       }
     } catch (error) {
       setErro('Erro de conexão');
+      setTimeout(() => setErro(''), 3000);
     }
   };
 
@@ -87,17 +102,94 @@ export default function Home() {
         setMensagem('Livro adicionado com sucesso!');
         setNovoLivro({ titulo: '', ano: '', autorId: '' });
         carregarDados();
+        setTimeout(() => setMensagem(''), 3000);
       } else {
         const error = await response.json();
         setErro(error.error || 'Erro ao adicionar livro');
+        setTimeout(() => setErro(''), 3000);
       }
     } catch (error) {
       setErro('Erro de conexão');
+      setTimeout(() => setErro(''), 3000);
     }
+  };
+
+  const abrirModalExclusao = (tipo: 'autor' | 'livro', id: number, nome: string) => {
+    setModal({
+      isOpen: true,
+      tipo,
+      id,
+      nome
+    });
+  };
+
+  const fecharModal = () => {
+    setModal({
+      isOpen: false,
+      tipo: null,
+      id: null,
+      nome: ''
+    });
+  };
+
+  const confirmarExclusao = async () => {
+    if (!modal.id || !modal.tipo) return;
+    
+    try {
+      const response = await fetch(`/api/${modal.tipo}s?id=${modal.id}`, {
+        method: 'DELETE'
+      });
+      
+      if (response.ok) {
+        setMensagem(`${modal.tipo === 'autor' ? 'Autor' : 'Livro'} excluído com sucesso!`);
+        carregarDados();
+        setTimeout(() => setMensagem(''), 3000);
+      } else {
+        const error = await response.json();
+        setErro(error.error || `Erro ao excluir ${modal.tipo}`);
+        setTimeout(() => setErro(''), 3000);
+      }
+    } catch (error) {
+      setErro('Erro de conexão');
+      setTimeout(() => setErro(''), 3000);
+    }
+    
+    fecharModal();
+  };
+
+  const contarLivrosDoAutor = (autorId: number) => {
+    return livros.filter(l => l.autorId === autorId).length;
   };
 
   return (
     <div className="container">
+      {/* Modal de Confirmação */}
+      {modal.isOpen && (
+        <div className="modal-overlay" onClick={fecharModal}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Confirmar Exclusão</h3>
+            <p>
+              Tem certeza que deseja excluir {modal.tipo === 'autor' ? 'o autor' : 'o livro'}{' '}
+              <strong>"{modal.nome}"</strong>?
+              {modal.tipo === 'autor' && contarLivrosDoAutor(modal.id!) > 0 && (
+                <span style={{ color: '#e74c3c', display: 'block', marginTop: '10px' }}>
+                  ⚠️ Este autor possui {contarLivrosDoAutor(modal.id!)} livro(s) cadastrado(s).
+                  Ao excluí-lo, seus livros também serão removidos.
+                </span>
+              )}
+            </p>
+            <div className="modal-buttons">
+              <button className="button" onClick={fecharModal}>
+                Cancelar
+              </button>
+              <button className="button button-danger" onClick={confirmarExclusao}>
+                Excluir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <header className="header">
         <h1>📚 Biblioteca Pessoal</h1>
         <p>Sistema simples com Next.js e SQLite</p>
@@ -155,6 +247,8 @@ export default function Home() {
                 value={novoLivro.ano}
                 onChange={(e) => setNovoLivro({...novoLivro, ano: e.target.value})}
                 required
+                min="1000"
+                max="2100"
               />
             </div>
             <div className="form-group">
@@ -189,6 +283,15 @@ export default function Home() {
               <p><strong>Autor:</strong> {livro.autorNome}</p>
               <p><strong>Ano:</strong> {livro.ano}</p>
               <p><strong>País do Autor:</strong> {livro.autorPais}</p>
+              
+              <div className="card-actions">
+                <button
+                  className="action-button button-danger"
+                  onClick={() => abrirModalExclusao('livro', livro.id, livro.titulo)}
+                >
+                  Excluir
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -202,7 +305,16 @@ export default function Home() {
             <div key={autor.id} className="data-card">
               <h3>{autor.nome}</h3>
               <p><strong>País:</strong> {autor.pais}</p>
-              <p><strong>Livros:</strong> {livros.filter(l => l.autorId === autor.id).length}</p>
+              <p><strong>Livros:</strong> {contarLivrosDoAutor(autor.id)}</p>
+              
+              <div className="card-actions">
+                <button
+                  className="action-button button-danger"
+                  onClick={() => abrirModalExclusao('autor', autor.id, autor.nome)}
+                >
+                  Excluir
+                </button>
+              </div>
             </div>
           ))}
         </div>
