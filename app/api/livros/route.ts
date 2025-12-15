@@ -8,10 +8,11 @@ export async function GET() {
       .from('livros')
       .select(`
         *,
-        autores:nome,
-        autores:pais
+        autores!inner(*)
       `)
       .order('titulo');
+    
+    if (error) throw error;
     
     // Formatar dados para manter compatibilidade com frontend
     const livrosFormatados = livros?.map(livro => ({
@@ -33,7 +34,7 @@ export async function GET() {
   }
 }
 
-// POST - Criar novo livro
+// POST - Criar novo livro (VERSÃO CORRIGIDA)
 export async function POST(request: Request) {
   try {
     const { titulo, ano, autorId } = await request.json();
@@ -45,31 +46,36 @@ export async function POST(request: Request) {
       );
     }
     
-    // Inserir novo livro
-    const { data: novoLivro, error } = await supabase
+    // 1. Primeiro inserir o livro
+    const { data: novoLivro, error: insertError } = await supabase
       .from('livros')
       .insert([{ 
         titulo, 
         ano: parseInt(ano), 
         autor_id: parseInt(autorId) 
       }])
-      .select(`
-        *,
-        autores:nome,
-        autores:pais
-      `)
+      .select()
       .single();
     
-    if (error) throw error;
+    if (insertError) throw insertError;
     
-    // Formatar resposta
+    // 2. Buscar informações do autor separadamente
+    const { data: autor, error: autorError } = await supabase
+      .from('autores')
+      .select('*')
+      .eq('id', parseInt(autorId))
+      .single();
+    
+    if (autorError) throw autorError;
+    
+    // 3. Formatar resposta
     const livroFormatado = {
       id: novoLivro.id,
       titulo: novoLivro.titulo,
       ano: novoLivro.ano,
       autorId: novoLivro.autor_id,
-      autorNome: novoLivro.autores?.nome,
-      autorPais: novoLivro.autores?.pais
+      autorNome: autor.nome,
+      autorPais: autor.pais
     };
     
     return NextResponse.json(livroFormatado);
