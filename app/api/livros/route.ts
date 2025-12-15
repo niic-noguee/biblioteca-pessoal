@@ -83,6 +83,3 @@ export async function DELETE(request: Request) {
     );
   }
 }
-
-// Exportar todas as funções
-export { GET, POST, DELETE };

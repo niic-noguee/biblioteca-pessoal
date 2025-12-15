@@ -132,16 +132,26 @@ export default function Home() {
     });
   };
 
+  // ✅✅✅ CORREÇÃO AQUI - FUNÇÃO PRINCIPAL CORRIGIDA ✅✅✅
   const confirmarExclusao = async () => {
     if (!modal.id || !modal.tipo) return;
     
+    // ✅ CORREÇÃO: Converter 'autor' para 'autores' e 'livro' para 'livros'
+    const endpoint = modal.tipo === 'autor' ? 'autores' : 'livros';
+    
+    console.log(`🔄 Excluindo ${modal.tipo} ID: ${modal.id}`);
+    console.log(`🌐 Endpoint correto: /api/${endpoint}?id=${modal.id}`);
+    
     try {
-      const response = await fetch(`/api/${modal.tipo}s?id=${modal.id}`, {
+      const response = await fetch(`/api/${endpoint}?id=${modal.id}`, {
         method: 'DELETE'
       });
       
+      console.log(`📊 Status da resposta: ${response.status}`);
+      
       if (response.ok) {
-        setMensagem(`${modal.tipo === 'autor' ? 'Autor' : 'Livro'} excluído com sucesso!`);
+        const data = await response.json();
+        setMensagem(data.message || `${modal.tipo === 'autor' ? 'Autor' : 'Livro'} excluído com sucesso!`);
         carregarDados();
         setTimeout(() => setMensagem(''), 3000);
       } else {
@@ -150,7 +160,8 @@ export default function Home() {
         setTimeout(() => setErro(''), 3000);
       }
     } catch (error) {
-      setErro('Erro de conexão');
+      console.error('❌ Erro na requisição:', error);
+      setErro('Erro de conexão com o servidor');
       setTimeout(() => setErro(''), 3000);
     }
     
@@ -192,7 +203,7 @@ export default function Home() {
 
       <header className="header">
         <h1>📚 Biblioteca Pessoal</h1>
-        <p>Sistema simples com Next.js e SQLite</p>
+        <p>Organize sua coleção literária pessoal</p>
       </header>
 
       {mensagem && <div className="success">{mensagem}</div>}

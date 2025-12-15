@@ -88,11 +88,13 @@ body {
 }
 
 .button-success {
-  background-color: #27ae60;
+  background-color: #3498db;
+  /* #27ae60 */
 }
 
 .button-success:hover {
-  background-color: #219653;
+  background-color: #2980b9;
+  /* 219653 */
 }
 
 .data-grid {

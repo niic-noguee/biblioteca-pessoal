@@ -7,6 +7,7 @@ export async function GET() {
     const autores = db.prepare('SELECT * FROM autores ORDER BY nome').all();
     return NextResponse.json(autores);
   } catch (error) {
+    console.error('Erro ao buscar autores:', error);
     return NextResponse.json(
       { error: 'Erro ao buscar autores' },
       { status: 500 }
@@ -26,15 +27,29 @@ export async function POST(request: Request) {
       );
     }
     
+    // Verificar se autor já existe
+    const autorExistente = db
+      .prepare('SELECT * FROM autores WHERE nome = ? AND pais = ?')
+      .get(nome, pais);
+    
+    if (autorExistente) {
+      return NextResponse.json(
+        { error: 'Este autor já está cadastrado' },
+        { status: 400 }
+      );
+    }
+    
     const stmt = db.prepare('INSERT INTO autores (nome, pais) VALUES (?, ?)');
     const result = stmt.run(nome, pais);
     
     return NextResponse.json({
       id: result.lastInsertRowid,
       nome,
-      pais
+      pais,
+      message: 'Autor cadastrado com sucesso!'
     });
   } catch (error) {
+    console.error('Erro ao criar autor:', error);
     return NextResponse.json(
       { error: 'Erro ao criar autor' },
       { status: 500 }
@@ -42,45 +57,88 @@ export async function POST(request: Request) {
   }
 }
 
-// DELETE - Excluir autor
+// DELETE - Excluir autor (VERSÃO SIMPLES E FUNCIONAL)
 export async function DELETE(request: Request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
+    // Pegar o ID da URL
+    const url = new URL(request.url);
+    const id = url.searchParams.get('id');
     
-    if (!id) {
+    console.log('🔄 Recebida requisição DELETE para autor ID:', id);
+    
+    if (!id || isNaN(parseInt(id))) {
       return NextResponse.json(
-        { error: 'ID do autor é obrigatório' },
+        { error: 'ID do autor é obrigatório e deve ser um número' },
         { status: 400 }
       );
     }
     
-    // Primeiro, excluir os livros do autor (cascata)
-    const deleteLivrosStmt = db.prepare('DELETE FROM livros WHERE autorId = ?');
-    deleteLivrosStmt.run(parseInt(id));
+    const autorId = parseInt(id);
     
-    // Depois, excluir o autor
-    const deleteAutorStmt = db.prepare('DELETE FROM autores WHERE id = ?');
-    const result = deleteAutorStmt.run(parseInt(id));
+    // 1. Primeiro, verificar se o autor existe
+    const autor = db.prepare('SELECT * FROM autores WHERE id = ?').get(autorId);
     
-    if (result.changes === 0) {
+    if (!autor) {
+      console.log('❌ Autor não encontrado, ID:', autorId);
       return NextResponse.json(
         { error: 'Autor não encontrado' },
         { status: 404 }
       );
     }
     
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Autor e seus livros excluídos com sucesso' 
+    console.log('✅ Autor encontrado:', autor);
+    
+    // 2. Contar quantos livros este autor tem
+    const contagemStmt = db.prepare('SELECT COUNT(*) as total FROM livros WHERE autorId = ?');
+    const contagem = contagemStmt.get(autorId) as { total: number };
+    
+    console.log(`📚 Autor tem ${contagem.total} livro(s)`);
+    
+    // 3. EXCLUIR LIVROS DO AUTOR primeiro (para evitar erro de chave estrangeira)
+    if (contagem.total > 0) {
+      console.log('🗑️  Excluindo livros do autor...');
+      const deleteLivrosStmt = db.prepare('DELETE FROM livros WHERE autorId = ?');
+      const livrosExcluidos = deleteLivrosStmt.run(autorId);
+      console.log(`✅ ${livrosExcluidos.changes} livro(s) excluído(s)`);
+    }
+    
+    // 4. Agora excluir o autor
+    console.log('🗑️  Excluindo autor...');
+    const deleteAutorStmt = db.prepare('DELETE FROM autores WHERE id = ?');
+    const resultado = deleteAutorStmt.run(autorId);
+    
+    if (resultado.changes === 0) {
+      console.log('❌ Nenhum autor foi excluído');
+      return NextResponse.json(
+        { error: 'Não foi possível excluir o autor' },
+        { status: 500 }
+      );
+    }
+    
+    console.log('✅ Autor excluído com sucesso!');
+    
+    // 5. Retornar sucesso
+    return NextResponse.json({
+      success: true,
+      message: `Autor "${autor.nome}" excluído com sucesso!`,
+      detalhes: {
+        autorExcluido: autor.nome,
+        livrosRemovidos: contagem.total,
+        autorId: autorId
+      }
     });
-  } catch (error) {
+    
+  } catch (error: any) {
+    console.error('❌ ERRO CRÍTICO ao excluir autor:', error);
+    console.error('Mensagem:', error.message);
+    console.error('Stack:', error.stack);
+    
     return NextResponse.json(
-      { error: 'Erro ao excluir autor' },
+      { 
+        error: 'Erro interno ao excluir autor',
+        detalhes: error.message 
+      },
       { status: 500 }
     );
   }
 }
-
-// Exportar todas as funções
-export { GET, POST, DELETE };
