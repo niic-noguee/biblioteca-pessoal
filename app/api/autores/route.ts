@@ -1,21 +1,17 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/database';
 
-// Interface para tipagem
+// Interface para o tipo Autor
 interface AutorDB {
   id: number;
   nome: string;
   pais: string;
 }
 
-interface ContagemLivros {
-  total: number;
-}
-
 // GET - Listar todos os autores
 export async function GET() {
   try {
-    const autores = db.prepare('SELECT * FROM autores ORDER BY nome').all();
+    const autores = db.prepare('SELECT * FROM autores ORDER BY nome').all() as AutorDB[];
     return NextResponse.json(autores);
   } catch (error) {
     console.error('Erro ao buscar autores:', error);
@@ -99,11 +95,11 @@ export async function DELETE(request: Request) {
       );
     }
     
-    console.log('✅ Autor encontrado:', autor.nome);
+    console.log('✅ Autor encontrado:', autor);
     
     // 2. Contar quantos livros este autor tem
     const contagemStmt = db.prepare('SELECT COUNT(*) as total FROM livros WHERE autorId = ?');
-    const contagem = contagemStmt.get(autorId) as ContagemLivros;
+    const contagem = contagemStmt.get(autorId) as { total: number };
     
     console.log(`📚 Autor tem ${contagem.total} livro(s)`);
     
