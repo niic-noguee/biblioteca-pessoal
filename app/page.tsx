@@ -132,11 +132,9 @@ export default function Home() {
     });
   };
 
-  // ✅✅✅ CORREÇÃO AQUI - FUNÇÃO PRINCIPAL CORRIGIDA ✅✅✅
   const confirmarExclusao = async () => {
     if (!modal.id || !modal.tipo) return;
     
-    // ✅ CORREÇÃO: Converter 'autor' para 'autores' e 'livro' para 'livros'
     const endpoint = modal.tipo === 'autor' ? 'autores' : 'livros';
     
     console.log(`🔄 Excluindo ${modal.tipo} ID: ${modal.id}`);

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/database';
 
-// GET - Listar todos os livros
+// Listar todos os livros
 export async function GET() {
   try {
     const livros = db.prepare(`
@@ -20,7 +20,7 @@ export async function GET() {
   }
 }
 
-// POST - Criar novo livro
+// Criar novo livro
 export async function POST(request: Request) {
   try {
     const { titulo, ano, autorId } = await request.json();
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
   }
 }
 
-// DELETE - Excluir livro
+// Excluir livro
 export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
