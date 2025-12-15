@@ -1,18 +1,31 @@
 import { NextResponse } from 'next/server';
-import db from '@/lib/database';
+import { supabase } from '@/lib/supabase';
 
-// Listar todos os livros
+// GET - Listar todos os livros com informações do autor
 export async function GET() {
   try {
-    const livros = db.prepare(`
-      SELECT l.*, a.nome as autorNome, a.pais as autorPais 
-      FROM livros l
-      JOIN autores a ON l.autorId = a.id
-      ORDER BY l.titulo
-    `).all();
+    const { data: livros, error } = await supabase
+      .from('livros')
+      .select(`
+        *,
+        autores:nome,
+        autores:pais
+      `)
+      .order('titulo');
     
-    return NextResponse.json(livros);
+    // Formatar dados para manter compatibilidade com frontend
+    const livrosFormatados = livros?.map(livro => ({
+      id: livro.id,
+      titulo: livro.titulo,
+      ano: livro.ano,
+      autorId: livro.autor_id,
+      autorNome: livro.autores?.nome,
+      autorPais: livro.autores?.pais
+    })) || [];
+    
+    return NextResponse.json(livrosFormatados);
   } catch (error) {
+    console.error('Erro ao buscar livros:', error);
     return NextResponse.json(
       { error: 'Erro ao buscar livros' },
       { status: 500 }
@@ -20,7 +33,7 @@ export async function GET() {
   }
 }
 
-// Criar novo livro
+// POST - Criar novo livro
 export async function POST(request: Request) {
   try {
     const { titulo, ano, autorId } = await request.json();
@@ -32,16 +45,36 @@ export async function POST(request: Request) {
       );
     }
     
-    const stmt = db.prepare('INSERT INTO livros (titulo, ano, autorId) VALUES (?, ?, ?)');
-    const result = stmt.run(titulo, parseInt(ano), parseInt(autorId));
+    // Inserir novo livro
+    const { data: novoLivro, error } = await supabase
+      .from('livros')
+      .insert([{ 
+        titulo, 
+        ano: parseInt(ano), 
+        autor_id: parseInt(autorId) 
+      }])
+      .select(`
+        *,
+        autores:nome,
+        autores:pais
+      `)
+      .single();
     
-    return NextResponse.json({
-      id: result.lastInsertRowid,
-      titulo,
-      ano: parseInt(ano),
-      autorId: parseInt(autorId)
-    });
+    if (error) throw error;
+    
+    // Formatar resposta
+    const livroFormatado = {
+      id: novoLivro.id,
+      titulo: novoLivro.titulo,
+      ano: novoLivro.ano,
+      autorId: novoLivro.autor_id,
+      autorNome: novoLivro.autores?.nome,
+      autorPais: novoLivro.autores?.pais
+    };
+    
+    return NextResponse.json(livroFormatado);
   } catch (error) {
+    console.error('Erro ao criar livro:', error);
     return NextResponse.json(
       { error: 'Erro ao criar livro' },
       { status: 500 }
@@ -49,34 +82,36 @@ export async function POST(request: Request) {
   }
 }
 
-// Excluir livro
+// DELETE - Excluir livro
 export async function DELETE(request: Request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
+    const url = new URL(request.url);
+    const id = url.searchParams.get('id');
     
-    if (!id) {
+    if (!id || isNaN(parseInt(id))) {
       return NextResponse.json(
-        { error: 'ID do livro é obrigatório' },
+        { error: 'ID do livro é obrigatório e deve ser um número' },
         { status: 400 }
       );
     }
     
-    const stmt = db.prepare('DELETE FROM livros WHERE id = ?');
-    const result = stmt.run(parseInt(id));
+    const livroId = parseInt(id);
     
-    if (result.changes === 0) {
-      return NextResponse.json(
-        { error: 'Livro não encontrado' },
-        { status: 404 }
-      );
-    }
+    // Excluir livro
+    const { error } = await supabase
+      .from('livros')
+      .delete()
+      .eq('id', livroId);
     
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Livro excluído com sucesso' 
+    if (error) throw error;
+    
+    return NextResponse.json({
+      success: true,
+      message: 'Livro excluído com sucesso!'
     });
+    
   } catch (error) {
+    console.error('Erro ao excluir livro:', error);
     return NextResponse.json(
       { error: 'Erro ao excluir livro' },
       { status: 500 }
