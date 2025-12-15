@@ -1,7 +1,18 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/database';
 
-// Listar todos os autores
+// Interface para tipagem
+interface AutorDB {
+  id: number;
+  nome: string;
+  pais: string;
+}
+
+interface ContagemLivros {
+  total: number;
+}
+
+// GET - Listar todos os autores
 export async function GET() {
   try {
     const autores = db.prepare('SELECT * FROM autores ORDER BY nome').all();
@@ -15,7 +26,7 @@ export async function GET() {
   }
 }
 
-// Criar novo autor
+// POST - Criar novo autor
 export async function POST(request: Request) {
   try {
     const { nome, pais } = await request.json();
@@ -27,9 +38,10 @@ export async function POST(request: Request) {
       );
     }
     
+    // Verificar se autor já existe
     const autorExistente = db
       .prepare('SELECT * FROM autores WHERE nome = ? AND pais = ?')
-      .get(nome, pais);
+      .get(nome, pais) as AutorDB | undefined;
     
     if (autorExistente) {
       return NextResponse.json(
@@ -56,9 +68,10 @@ export async function POST(request: Request) {
   }
 }
 
-// Excluir autor 
+// DELETE - Excluir autor (VERSÃO SIMPLES E FUNCIONAL)
 export async function DELETE(request: Request) {
   try {
+    // Pegar o ID da URL
     const url = new URL(request.url);
     const id = url.searchParams.get('id');
     
@@ -73,7 +86,10 @@ export async function DELETE(request: Request) {
     
     const autorId = parseInt(id);
     
-    const autor = db.prepare('SELECT * FROM autores WHERE id = ?').get(autorId);
+    // 1. Primeiro, verificar se o autor existe
+    const autor = db
+      .prepare('SELECT * FROM autores WHERE id = ?')
+      .get(autorId) as AutorDB | undefined;
     
     if (!autor) {
       console.log('❌ Autor não encontrado, ID:', autorId);
@@ -83,13 +99,15 @@ export async function DELETE(request: Request) {
       );
     }
     
-    console.log('✅ Autor encontrado:', autor);
+    console.log('✅ Autor encontrado:', autor.nome);
     
+    // 2. Contar quantos livros este autor tem
     const contagemStmt = db.prepare('SELECT COUNT(*) as total FROM livros WHERE autorId = ?');
-    const contagem = contagemStmt.get(autorId) as { total: number };
+    const contagem = contagemStmt.get(autorId) as ContagemLivros;
     
     console.log(`📚 Autor tem ${contagem.total} livro(s)`);
     
+    // 3. EXCLUIR LIVROS DO AUTOR primeiro (para evitar erro de chave estrangeira)
     if (contagem.total > 0) {
       console.log('🗑️  Excluindo livros do autor...');
       const deleteLivrosStmt = db.prepare('DELETE FROM livros WHERE autorId = ?');
@@ -97,6 +115,7 @@ export async function DELETE(request: Request) {
       console.log(`✅ ${livrosExcluidos.changes} livro(s) excluído(s)`);
     }
     
+    // 4. Agora excluir o autor
     console.log('🗑️  Excluindo autor...');
     const deleteAutorStmt = db.prepare('DELETE FROM autores WHERE id = ?');
     const resultado = deleteAutorStmt.run(autorId);
@@ -111,6 +130,7 @@ export async function DELETE(request: Request) {
     
     console.log('✅ Autor excluído com sucesso!');
     
+    // 5. Retornar sucesso
     return NextResponse.json({
       success: true,
       message: `Autor "${autor.nome}" excluído com sucesso!`,
