@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
-// GET - Listar todos os autores
+// Listar todos os autores
 export async function GET() {
   try {
     const { data: autores, error } = await supabase
@@ -21,7 +21,7 @@ export async function GET() {
   }
 }
 
-// POST - Criar novo autor
+// Criar novo autor
 export async function POST(request: Request) {
   try {
     const { nome, pais } = await request.json();
@@ -33,7 +33,6 @@ export async function POST(request: Request) {
       );
     }
     
-    // Verificar se autor já existe
     const { data: autorExistente, error: checkError } = await supabase
       .from('autores')
       .select('*')
@@ -42,7 +41,6 @@ export async function POST(request: Request) {
       .single();
     
     if (checkError && checkError.code !== 'PGRST116') {
-      // PGRST116 significa "nenhum resultado encontrado", o que é OK
       throw checkError;
     }
     
@@ -53,7 +51,6 @@ export async function POST(request: Request) {
       );
     }
     
-    // Inserir novo autor
     const { data: novoAutor, error: insertError } = await supabase
       .from('autores')
       .insert([{ nome, pais }])
@@ -75,7 +72,7 @@ export async function POST(request: Request) {
   }
 }
 
-// DELETE - Excluir autor
+// Excluir autor
 export async function DELETE(request: Request) {
   try {
     const url = new URL(request.url);
@@ -90,7 +87,6 @@ export async function DELETE(request: Request) {
     
     const autorId = parseInt(id);
     
-    // Verificar se autor existe
     const { data: autor, error: fetchError } = await supabase
       .from('autores')
       .select('*')
@@ -104,7 +100,7 @@ export async function DELETE(request: Request) {
       );
     }
     
-    // Excluir autor (os livros serão excluídos automaticamente pelo CASCADE)
+    // Excluir autor (os livros serão excluídos automaticamente)
     const { error: deleteError } = await supabase
       .from('autores')
       .delete()

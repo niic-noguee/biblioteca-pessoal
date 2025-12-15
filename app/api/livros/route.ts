@@ -1,30 +1,36 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
-// GET - Listar todos os livros com informações do autor
+// Listar todos os livros
 export async function GET() {
   try {
     const { data: livros, error } = await supabase
       .from('livros')
-      .select(`
-        *,
-        autores!inner(*)
-      `)
+      .select('*')
       .order('titulo');
     
     if (error) throw error;
     
-    // Formatar dados para manter compatibilidade com frontend
-    const livrosFormatados = livros?.map(livro => ({
-      id: livro.id,
-      titulo: livro.titulo,
-      ano: livro.ano,
-      autorId: livro.autor_id,
-      autorNome: livro.autores?.nome,
-      autorPais: livro.autores?.pais
-    })) || [];
+    const livrosComAutores = await Promise.all(
+      livros.map(async (livro) => {
+        const { data: autor } = await supabase
+          .from('autores')
+          .select('*')
+          .eq('id', livro.autor_id)
+          .single();
+        
+        return {
+          id: livro.id,
+          titulo: livro.titulo,
+          ano: livro.ano,
+          autorId: livro.autor_id,
+          autorNome: autor?.nome || 'Desconhecido',
+          autorPais: autor?.pais || 'Desconhecido'
+        };
+      })
+    );
     
-    return NextResponse.json(livrosFormatados);
+    return NextResponse.json(livrosComAutores);
   } catch (error) {
     console.error('Erro ao buscar livros:', error);
     return NextResponse.json(
@@ -34,7 +40,7 @@ export async function GET() {
   }
 }
 
-// POST - Criar novo livro (VERSÃO CORRIGIDA)
+// Criar novo livro
 export async function POST(request: Request) {
   try {
     const { titulo, ano, autorId } = await request.json();
@@ -46,8 +52,7 @@ export async function POST(request: Request) {
       );
     }
     
-    // 1. Primeiro inserir o livro
-    const { data: novoLivro, error: insertError } = await supabase
+    const { data: novoLivro, error } = await supabase
       .from('livros')
       .insert([{ 
         titulo, 
@@ -57,28 +62,22 @@ export async function POST(request: Request) {
       .select()
       .single();
     
-    if (insertError) throw insertError;
+    if (error) throw error;
     
-    // 2. Buscar informações do autor separadamente
-    const { data: autor, error: autorError } = await supabase
+    const { data: autor } = await supabase
       .from('autores')
       .select('*')
       .eq('id', parseInt(autorId))
       .single();
     
-    if (autorError) throw autorError;
-    
-    // 3. Formatar resposta
-    const livroFormatado = {
+    return NextResponse.json({
       id: novoLivro.id,
       titulo: novoLivro.titulo,
       ano: novoLivro.ano,
       autorId: novoLivro.autor_id,
-      autorNome: autor.nome,
-      autorPais: autor.pais
-    };
-    
-    return NextResponse.json(livroFormatado);
+      autorNome: autor?.nome || 'Desconhecido',
+      autorPais: autor?.pais || 'Desconhecido'
+    });
   } catch (error) {
     console.error('Erro ao criar livro:', error);
     return NextResponse.json(
@@ -88,7 +87,7 @@ export async function POST(request: Request) {
   }
 }
 
-// DELETE - Excluir livro
+// Excluir livro
 export async function DELETE(request: Request) {
   try {
     const url = new URL(request.url);
@@ -103,7 +102,6 @@ export async function DELETE(request: Request) {
     
     const livroId = parseInt(id);
     
-    // Excluir livro
     const { error } = await supabase
       .from('livros')
       .delete()
